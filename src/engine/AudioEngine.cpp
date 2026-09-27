@@ -14,7 +14,7 @@ extern bool nextTrackPreLaunched;
 
 // 🚀 THE TIMING FIX ACCUMULATOR: Tracks true absolute bytes sent for the current track
 volatile uint32_t absoluteTrackBytesPlayed = 0;
-int lastTrackIndexTracked = -1; 
+int lastTrackIndexTracked = -1;
 
 // Standard paths retain their boundary tracking definitions
 char currentArtistFolder[PATH_BUFFER_SIZE] = "";
@@ -153,7 +153,6 @@ void playFreshAlbumStart() {
   nextTrackPreLaunched = false;
 
   activeEngineState = ENGINE_ACTIVE_PLAYING;
-  // updateTrackWindow(currentTrackIndex + 1, trackQueue[currentTrackIndex]);
   Serial.printf("AUDIO ENGINE: Priming complete. Cached %lu continuous bytes.\n", totalBytesWritten);
 }
 
@@ -258,33 +257,24 @@ void updateAudioEngine() {
 
         Serial.printf("🔊 AUDIO TRANSITION: Advanced tracking index to %d. Flagged UI thread.\n", activePlaybackTrackIndex + 1);
       }
-
       // Maintain our separate static display string checker block for manual launches
       if (activePlaybackTrackIndex != lastTrackIndexTracked) {
         lastTrackIndexTracked = activePlaybackTrackIndex;
         absoluteTrackBytesPlayed = 0;
-
         extern volatile bool uiTrackWindowNeedsRefresh;
         uiTrackWindowNeedsRefresh = true;
       }
-
-      ringReadPointer = (ringReadPointer + 512) % TOTAL_BUFFER_SIZE;
-
-      // 🚀 THE DEFENSIVE SECURITY SHIELD:
-      // Changed exact equality checks (==) to boundary window gates (>=) to completely
-      // protect the rolling buffer from ever missing a background refill trigger!
-      if (ringReadPointer >= BANK_SIZE_BYTES && ringReadPointer < (BANK_SIZE_BYTES + 512) && !bankNeedRefill) {
+      ringReadPointer = (ringReadPointer + 512) % TOTAL_BUFFER_SIZE;  // 🚀 RESTORED ORIGINAL EXACT BOUNDARY CHECKS
+      if (ringReadPointer == BANK_SIZE_BYTES && !bankNeedRefill) {
         activeRefillBank = 0;
         currentBankWriteProgressBytes = 0;
         bankNeedRefill = true;
-      } else if (ringReadPointer < 512 && ringReadPointer >= 0 && !bankNeedRefill) {
+      } else if (ringReadPointer == 0 && !bankNeedRefill) {
         activeRefillBank = 1;
         currentBankWriteProgressBytes = 0;
         bankNeedRefill = true;
       }
     }
   }
-  if (isMediaPlaying && !isMediaPaused) {
-    processBackgroundSDFill();
-  }
+  if (isMediaPlaying && !isMediaPaused) { processBackgroundSDFill(); }
 }
