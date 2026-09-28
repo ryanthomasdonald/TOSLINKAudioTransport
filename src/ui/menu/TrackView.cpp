@@ -30,16 +30,13 @@ void drawTrackView() {
   tft.drawRect(360, 229, 120, 91, COLOR_RAMS_DIVIDER);
   tft.fillTriangle(midX, midY2 + 10, midX - 12, midY2 - 6, midX + 12, midY2 - 6, COLOR_RAMS_WHITE);
 
+  // 🚀 THE REDIRECT FIX: Target browse registers to look up track entries safely
   int trackCount = library[browseArtistIndex].albums[browseAlbumIndex].trackCount;
 
   if (trackCount == 0) {
     drawWrappedTextLine("EMPTY", 30, 120, 200, 2, COLOR_RAMS_TEXT_MUTE, COLOR_RAMS_BG, 0, 1, dummyNextY);
   } else {
     for (int i = 0; i < 5; i++) {
-      // 🚀 MILESTONE INTERLEAVED PUMP: Keep background stream ticking mid-draw
-      void updateAudioEngine();
-      updateAudioEngine();
-
       int itemIndex = menuScrollOffset + i;
       int boxY = 45 + (i * 55);
 
@@ -103,12 +100,15 @@ void processTrackViewTouch() {
           activeEngineState = ENGINE_IDLE;
           delay(10);
 
+          // 🚀 THE COMMIT INTERLOCK: Lock browse registers into active playback metrics
           selectedArtistIndex = browseArtistIndex;
           selectedAlbumIndex = browseAlbumIndex;
           currentTrackIndex = itemIndex;
 
           populateTrackQueue();
 
+          // 🚀 THE ALIGNMENT SHIELD: Construct the path with NO trailing slash!
+          // This prevents double-slash path resolution failures inside SD.open()
           String folderPath = "/" + String(library[selectedArtistIndex].name) + "/" + String(library[selectedArtistIndex].albums[selectedAlbumIndex].name);
           strncpy(currentAlbumAbsolutePath, folderPath.c_str(), sizeof(currentAlbumAbsolutePath) - 1);
           currentAlbumAbsolutePath[sizeof(currentAlbumAbsolutePath) - 1] = '\0';
@@ -121,6 +121,7 @@ void processTrackViewTouch() {
             snprintf(currentAlbumFolder, sizeof(currentAlbumFolder), "%s", library[selectedArtistIndex].albums[selectedAlbumIndex].name);
           }
 
+          // Cache artwork with a cleanly injected separator
           String artworkPath = folderPath + "/" + String(library[selectedArtistIndex].albums[selectedAlbumIndex].artworkFilename);
           cacheActiveAlbumArtwork(artworkPath);
 
@@ -130,6 +131,7 @@ void processTrackViewTouch() {
 
           delay(150);
 
+          // 🚀 ENGAGE UNIFIED BUFFER SYSTEM CYCLE: Clear RAM, strip headers, play music!
           playFreshAlbumStart();
           updatePlayPauseButtonLabel("||", COLOR_RAMS_CARD);
           break;

@@ -16,18 +16,20 @@ UIState currentUIState = STATE_MENU;
 MenuLevel currentMenuLevel = LEVEL_ARTISTS;
 int menuScrollOffset = 0;
 
-// 🚀 LINKER ALIGNMENT EXPOSURES:
-int browseArtistIndex = 0;
-int browseAlbumIndex = 0;
+// 🚀 THE COMPILER ALIGNMENT SHIELD: Expose these variables to all view sub-files!
+int browseArtistIndex = 0;  // Initialize to 0 so page draws don't fault on boot
+int browseAlbumIndex = 0;   // Initialize to 0
 
 uint32_t lastUpdatedSecond = 999999;
 uint16_t lastProgressPixelWidth = 0;
 uint16_t touchX = 0;
 uint16_t touchY = 0;
 
+// Expose the true variables mapping to LibraryCommon.cpp
 extern int libraryArtistCount;
-#define artistCount libraryArtistCount
+#define artistCount libraryArtistCount  // Direct alias alignment token
 
+// Forward-declare view rendering functions so processMenuTouch() can find them cleanly
 void drawArtistView();
 void drawAlbumView();
 void drawTrackView();
@@ -50,7 +52,7 @@ UI_Button transport[] = {
 
 void initDisplaySystem() {
   Wire.begin();
-  Wire.setClock(400000);  // Standard 400kHz baseline
+  Wire.setClock(400000);
 #if defined(TEENSYDUINO)
   Wire.setTimeout(3000);
 #endif
@@ -76,13 +78,19 @@ void drawBootLoadingScreen() {
 }
 
 void resetProgressTrackers() {
+  // 🚀 THE TIMING INSULATION FIX:
+  // If the engine is completely stopped/idle, lock the trackers to 0 state!
+  // This keeps handleLiveTimeAndProgressBar() from false-triggering an
+  // immediate duplicate drawing pass right after updateTrackWindow finishes.
   if (!isMediaPlaying && !isMediaPaused) {
     lastUpdatedSecond = 0;
     lastProgressPixelWidth = 0;
   } else {
+    // Standard initialization offset token for active playing tracks
     lastUpdatedSecond = 999999;
     lastProgressPixelWidth = 0;
   }
+
   if (currentUIState == STATE_PLAYER) {
     tft.fillRect(pBarX, pBarY, pBarMaxWidth, pBarHeight, COLOR_RAMS_DIVIDER);
   }
@@ -146,7 +154,6 @@ void drawBespokeChar(char c, int x, int y, int scale, uint16_t fgColor, uint16_t
 }
 
 void drawWrappedTextLine(const char* text, int startX, int startY, int maxW, int fontScale, uint16_t color, uint16_t bgColor, int lineSpacing, int maxLines, int& outNextY) {
-  void updateAudioEngine();
   String source = String(text);
   int currentX = startX;
   int currentY = startY;
@@ -157,10 +164,6 @@ void drawWrappedTextLine(const char* text, int startX, int startY, int maxW, int
   int wordStart = 0;
   bool firstWordOnLine = true;
   while (wordStart < (int)source.length()) {
-
-    // 🚀 INTERLEAVED MILESTONE PUMP HOOK
-    updateAudioEngine();
-
     if (maxLines > 0 && lineCount >= maxLines && currentX + (dotWidth * 3) > startX + maxW) {
       for (int e = 0; e < 3; e++) {
         int pad = 0;
@@ -246,6 +249,7 @@ void updateTrackWindow(int trackNum, const char* trackTitle) {
   albumStr.replace("/", "");
   albumStr.toUpperCase();
 
+  // Wipes the upper metadata area down completely
   tft.fillRect(235, 15, 230, 213, COLOR_RAMS_BG);
 
   int trackingY = 18;
@@ -265,14 +269,24 @@ void updateTrackWindow(int trackNum, const char* trackTitle) {
 
   trackingY = 74;
   int titleNextY = 0;
+
+  // Wipe the track name canvas column bounding area to guarantee old fragments are zeroed out
   tft.fillRect(235, trackingY, 230, 130, COLOR_RAMS_BG);
+
+  // Maximizing real estate by driving the lines parameter to 6 rows deep
   drawWrappedTextLine(cleanName.c_str(), 235, trackingY, 230, 3, COLOR_RAMS_WHITE, COLOR_RAMS_BG, 6, 6, titleNextY);
 
   char countBuf[32];
   sprintf(countBuf, "TRACK %02d OF %02d", trackNum, totalTracks);
   int dummyCountY = 0;
+
+  // Paint the track index tally cleanly in its row
   drawWrappedTextLine(countBuf, 235, 216, 120, 1, COLOR_RAMS_TEXT_MUTE, COLOR_RAMS_BG, 0, 1, dummyCountY);
 
+  // 🚀 THE VISUAL ALIGNMENT INTEGRATION:
+  // If the engine is completely idle/stopped, paint the static timeline clock
+  // right here as an integrated part of this single-pass drawing sweep!
+  // This restores your missing counter and ensures it draws exactly ONCE.
   if (!isMediaPlaying && !isMediaPaused) {
     int dummyTimeY = 0;
     tft.fillRect(394, 216, 71, 10, COLOR_RAMS_BG);
@@ -283,49 +297,76 @@ void updateTrackWindow(int trackNum, const char* trackTitle) {
 void handleLiveTimeAndProgressBar() {
   if (!isMediaPlaying) return;
 
+  // Access our active non-wrapping track byte counter and storage properties
   extern volatile uint32_t absoluteTrackBytesPlayed;
-  extern int activePlaybackTrackIndex;
+  extern int activePlaybackTrackIndex;  // 🚀 THE DECOUPLING SHIELD
   extern int totalTracks;
   extern char trackQueue[30][96];
   extern char currentAlbumAbsolutePath[256];
 
+  // 1. Calculate Elapsed Time Metrics (176,400 bytes per second for CD Stereo)
   uint32_t totalElapsedSeconds = absoluteTrackBytesPlayed / 176400;
   uint32_t elapsedMins = totalElapsedSeconds / 60;
   uint32_t elapsedSecs = totalElapsedSeconds % 60;
 
+  // 2. Prevent UI Screen Hammering: Only repaint if the second integer ticks over
   if (elapsedSecs != lastUpdatedSecond) {
     lastUpdatedSecond = elapsedSecs;
 
+    // 🚀 THE ALIGNMENT CORE: Query file size maps using our active playback index
+    // completely ignoring whatever track file the look-ahead loader has targeted!
     uint32_t totalTrackBytes = 0;
     if (selectedArtistIndex >= 0 && selectedAlbumIndex >= 0 && activePlaybackTrackIndex < totalTracks) {
       char fullTrackPath[384];
-      snprintf(fullTrackPath, sizeof(fullTrackPath), "%s/%s", currentAlbumAbsolutePath, trackQueue[activePlaybackTrackIndex]);
+      snprintf(fullTrackPath, sizeof(fullTrackPath), "%s/%s",
+               currentAlbumAbsolutePath, trackQueue[activePlaybackTrackIndex]);
+
       File sizeCheckFile = SD.open(fullTrackPath);
       if (sizeCheckFile) {
-        totalTrackBytes = sizeCheckFile.size() - 44;
+        totalTrackBytes = sizeCheckFile.size() - 44;  // Total payload minus uncompressed header
         sizeCheckFile.close();
       }
     }
-    if (totalTrackBytes == 0) totalTrackBytes = 176400 * 180;
+
+    // Protection fallback to prevent any malicious division by zero freezes
+    if (totalTrackBytes == 0) totalTrackBytes = 176400 * 180;  // 3-minute fallback
+
     uint32_t totalTrackSeconds = totalTrackBytes / 176400;
     uint32_t totalMins = totalTrackSeconds / 60;
     uint32_t totalSecs = totalTrackSeconds % 60;
+
+    // Synthesize the full composite readout string block container
     char timeBuffer[32];
-    snprintf(timeBuffer, sizeof(timeBuffer), "%02u:%02u / %02u:%02u", (unsigned int)elapsedMins, (unsigned int)elapsedSecs, (unsigned int)totalMins, (unsigned int)totalSecs);
+    snprintf(timeBuffer, sizeof(timeBuffer), "%02u:%02u / %02u:%02u",
+             (unsigned int)elapsedMins, (unsigned int)elapsedSecs,
+             (unsigned int)totalMins, (unsigned int)totalSecs);
+
+    // Repaint text right-aligned flush with the 465px progress bar layout boundary margin
     int dummyTimeY = 0;
-    tft.fillRect(394, 216, 71, 10, COLOR_RAMS_BG);
+    tft.fillRect(394, 216, 71, 10, COLOR_RAMS_BG);  // Wipe row to completely block text ghosting
     drawWrappedTextLine(timeBuffer, 394, 216, 71, 1, COLOR_RAMS_TEXT_MUTE, COLOR_RAMS_BG, 0, 1, dummyTimeY);
+
+    // =========================================================================
+    // 3. PROGRESS BAR MATHEMATICS
+    // =========================================================================
     if (totalTrackBytes > 0) {
       uint16_t currentProgressPixelWidth = ((uint64_t)absoluteTrackBytesPlayed * pBarMaxWidth) / totalTrackBytes;
+
       if (currentProgressPixelWidth > pBarMaxWidth) currentProgressPixelWidth = pBarMaxWidth;
+
       if (currentProgressPixelWidth != lastProgressPixelWidth) {
         lastProgressPixelWidth = currentProgressPixelWidth;
+
+        // Paint the hot active tracking slider line (Orange)
         tft.fillRect(pBarX, pBarY, currentProgressPixelWidth, pBarHeight, COLOR_RAMS_ORANGE);
+
+        // Paint the remaining empty buffer tracking space (Divider Mute Color)
         tft.fillRect(pBarX + currentProgressPixelWidth, pBarY, pBarMaxWidth - currentProgressPixelWidth, pBarHeight, COLOR_RAMS_DIVIDER);
       }
     }
   }
 }
+
 void drawTransportButton(UI_Button btn) {
   uint16_t bg = COLOR_RAMS_CARD;
   uint16_t fg = COLOR_RAMS_WHITE;
@@ -361,6 +402,7 @@ void drawTransportButton(UI_Button btn) {
     drawWrappedTextLine(btn.label, textX, textY, stringWidth + 2, 2, fg, bg, 0, 1, dummyNextY);
   }
 }
+
 bool readTouchPanel(uint16_t& x, uint16_t& y) {
   Wire.beginTransmission(FT6336U_ADDR);
   Wire.write(0x02);
@@ -378,45 +420,61 @@ bool readTouchPanel(uint16_t& x, uint16_t& y) {
   y = 320 - rawX;
   return true;
 }
+
 void syncGlobalTextFolderPointers() {
   if (selectedArtistIndex >= 0 && selectedAlbumIndex >= 0) {
     if (library[selectedArtistIndex].name != NULL) { snprintf(currentArtistFolder, PATH_BUFFER_SIZE, "%s", library[selectedArtistIndex].name); }
     if (library[selectedArtistIndex].albums[selectedAlbumIndex].name != NULL) { snprintf(currentAlbumFolder, PATH_BUFFER_SIZE, "%s", library[selectedArtistIndex].albums[selectedAlbumIndex].name); }
   }
 }
+
 void processTouchControls() {
   if (currentUIState == STATE_MENU) {
     processMenuTouch();
     return;
   }
+
   static bool lastTouchState = false;
   bool currentTouch = readTouchPanel(touchX, touchY);
+
   if (currentTouch && !lastTouchState) {
     for (int i = 0; i < 5; i++) {
       if (touchX >= transport[i].x && touchX <= (transport[i].x + transport[i].w) && touchY >= transport[i].y && touchY <= (transport[i].y + transport[i].h)) {
+
         transport[i].isPressed = true;
         drawTransportButton(transport[i]);
+
+        // Expose our new global enum state tracker to the button actions scope
         extern EngineLifecycleState activeEngineState;
         extern bool nextTrackPreLaunched;
         extern int activePlaybackTrackIndex;
-        if (i == 0) {
+
+        if (i == 0) {  // << PREVIOUS TRACK
           if (activePlaybackTrackIndex > 0) {
             isMediaPlaying = false;
+
+            // 🚀 THE SHIELD FIX: Simply shift indices and exit! Let the thread paint it once.
             currentTrackIndex--;
             activePlaybackTrackIndex = currentTrackIndex;
+
             nextTrackPreLaunched = false;
             activeEngineState = ENGINE_IDLE;
+
             syncGlobalTextFolderPointers();
             playFreshAlbumStart();
             updatePlayPauseButtonLabel("||", COLOR_RAMS_CARD);
           }
-        } else if (i == 1) {
+        } else if (i == 1) {  // > TOGGLE PLAY / PAUSE
           if (!isMediaPlaying && !isMediaPaused) {
+            // Fresh boot startup initialization configuration
             nextTrackPreLaunched = false;
             syncGlobalTextFolderPointers();
+
             playFreshAlbumStart();
             updatePlayPauseButtonLabel("||", COLOR_RAMS_CARD);
           } else {
+            // 🚀 THE MICRO-SLICE FIX: Simply flag our global indicators.
+            // The main updateAudioEngine() loop automatically reads these states!
             if (isMediaPlaying) {
               isMediaPlaying = false;
               isMediaPaused = true;
@@ -427,35 +485,46 @@ void processTouchControls() {
               updatePlayPauseButtonLabel("||", COLOR_RAMS_CARD);
             }
           }
-        } else if (i == 2) {
+        } else if (i == 2) {  // [] STOP BUTTON
           if (isMediaPlaying || isMediaPaused) {
+            // 🚀 THE SHIELD FIX: Shift state indicators cleanly and exit. Zero local drawing!
             isMediaPlaying = false;
             isMediaPaused = false;
             nextTrackPreLaunched = false;
             activeEngineState = ENGINE_IDLE;
+
             updatePlayPauseButtonLabel(">", COLOR_RAMS_CARD);
             syncGlobalTextFolderPointers();
+
+            // Proactively resync the background trackers
             extern int lastTrackIndexTracked;
             lastTrackIndexTracked = activePlaybackTrackIndex;
+
             extern uint32_t lastUpdatedSecond;
             extern uint16_t lastProgressPixelWidth;
             lastUpdatedSecond = 0;
             lastProgressPixelWidth = 0;
+
+            // Flag the master UI thread loop to paint the screen exactly once cleanly
             extern volatile bool uiTrackWindowNeedsRefresh;
             uiTrackWindowNeedsRefresh = true;
           }
-        } else if (i == 3) {
+        } else if (i == 3) {  // >> NEXT TRACK
           if (activePlaybackTrackIndex < (totalTracks - 1)) {
             isMediaPlaying = false;
+
+            // 🚀 THE SHIELD FIX: Simply shift indices and exit!
             currentTrackIndex++;
             activePlaybackTrackIndex = currentTrackIndex;
+
             nextTrackPreLaunched = false;
             activeEngineState = ENGINE_IDLE;
+
             syncGlobalTextFolderPointers();
             playFreshAlbumStart();
             updatePlayPauseButtonLabel("||", COLOR_RAMS_CARD);
           }
-        } else if (i == 4) {
+        } else if (i == 4) {  // MENU BUTTON
           menuScrollOffset = 0;
           currentUIState = STATE_MENU;
           currentMenuLevel = LEVEL_ARTISTS;
@@ -464,6 +533,7 @@ void processTouchControls() {
       }
     }
   }
+
   if (!currentTouch && lastTouchState) {
     for (int i = 0; i < 5; i++) {
       if (transport[i].isPressed) {
@@ -474,6 +544,7 @@ void processTouchControls() {
   }
   lastTouchState = currentTouch;
 }
+
 void drawMenuScreen() {
   if (currentMenuLevel == LEVEL_ARTISTS) {
     drawArtistView();
@@ -483,6 +554,7 @@ void drawMenuScreen() {
     drawTrackView();
   }
 }
+
 void processMenuTouch() {
   if (currentMenuLevel == LEVEL_ARTISTS) {
     processArtistViewTouch();

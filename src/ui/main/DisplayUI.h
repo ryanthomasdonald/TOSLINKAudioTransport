@@ -87,7 +87,5 @@ void processTrackViewTouch();
 
 void drawWrappedTextLine(const char* text, int startX, int startY, int maxW, int fontScale, uint16_t color, uint16_t bgColor, int lineSpacing, int maxLines, int& outNextY);
 bool readTouchPanel(uint16_t& x, uint16_t& y);
-void interleaveAudioEnginePump();
-
 
 #endif

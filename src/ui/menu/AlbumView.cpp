@@ -30,16 +30,13 @@ void drawAlbumView() {
   tft.drawRect(360, 229, 120, 91, COLOR_RAMS_DIVIDER);
   tft.fillTriangle(midX, midY2 + 10, midX - 12, midY2 - 6, midX + 12, midY2 - 6, COLOR_RAMS_WHITE);
 
+  // 🚀 THE REDIRECTION FIX: Pull file maps relative to browse registers to shield playing data
   int albumCount = library[browseArtistIndex].albumCount;
 
   if (albumCount == 0) {
     drawWrappedTextLine("EMPTY", 30, 120, 200, 2, COLOR_RAMS_TEXT_MUTE, COLOR_RAMS_BG, 0, 1, dummyNextY);
   } else {
     for (int i = 0; i < 5; i++) {
-      // 🚀 MILESTONE INTERLEAVED PUMP: Keep background stream ticking mid-draw
-      void updateAudioEngine();
-      updateAudioEngine();
-
       int itemIndex = menuScrollOffset + i;
       int boxY = 45 + (i * 55);
 
@@ -92,6 +89,7 @@ void processAlbumViewTouch() {
         if (itemIndex >= albumCount) break;
         int boxY = 45 + (i * 55);
         if (touchY >= boxY && touchY <= (boxY + 55)) {
+          // 🚀 THE SHIELD FIX: Track selections into browse register cache
           browseAlbumIndex = itemIndex;
           menuScrollOffset = 0;
           currentMenuLevel = LEVEL_TRACKS;
